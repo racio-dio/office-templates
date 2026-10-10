@@ -11,6 +11,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Iterable
 
+from .i18n import t
+
 DEFAULT_STAFF: tuple[str, ...] = ("张三", "李四", "王五", "赵六", "钱七")
 DEFAULT_DEPARTMENTS: tuple[str, ...] = ("销售部", "技术部", "财务部")
 
@@ -32,10 +34,10 @@ def read_names(path: str | Path) -> tuple[str, ...]:
     try:
         text = Path(path).read_text(encoding="utf-8")
     except OSError as exc:
-        raise ValueError(f"读取名单文件失败：{path}（{exc}）") from exc
+        raise ValueError(t("err.staff_file_read", path=path, error=exc)) from exc
     names = tuple(ln.strip() for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#"))
     if not names:
-        raise ValueError(f"名单文件里没有有效姓名：{path}")
+        raise ValueError(t("err.staff_file_empty", path=path))
     return names
 
 
@@ -59,15 +61,15 @@ class Options:
 
     def __post_init__(self) -> None:
         if not 1 <= self.month <= 12:
-            raise ValueError(f"月份必须在 1-12 之间，收到 {self.month}")
+            raise ValueError(t("err.month", value=self.month))
         if not 0 <= self.social_rate <= 1:
-            raise ValueError(f"社保比例必须在 0-1 之间，收到 {self.social_rate}")
+            raise ValueError(t("err.social_rate", value=self.social_rate))
         if not 0 <= self.fund_rate <= 1:
-            raise ValueError(f"公积金比例必须在 0-1 之间，收到 {self.fund_rate}")
+            raise ValueError(t("err.fund_rate", value=self.fund_rate))
         if not self.staff:
-            raise ValueError("员工名单不能为空")
+            raise ValueError(t("err.empty_staff"))
         if not self.departments:
-            raise ValueError("部门列表不能为空")
+            raise ValueError(t("err.empty_departments"))
 
     @property
     def month_tag(self) -> str:
@@ -84,7 +86,7 @@ class Options:
             try:
                 raw["start_date"] = date.fromisoformat(raw["start_date"])
             except ValueError as exc:
-                raise ValueError(f"start_date 需要 YYYY-MM-DD 格式：{raw['start_date']}") from exc
+                raise ValueError(t("err.start_date_format", value=raw["start_date"])) from exc
         for key in ("social_rate", "fund_rate"):
             if key in raw and isinstance(raw[key], str):
                 raw[key] = float(raw[key])
@@ -92,7 +94,7 @@ class Options:
         known = {f.name for f in fields(cls)}
         unknown = set(raw) - known
         if unknown:
-            raise ValueError(f"未知参数：{', '.join(sorted(unknown))}")
+            raise ValueError(t("err.unknown_option", names=", ".join(sorted(unknown))))
 
         return cls(**{k: (tuple(v) if isinstance(v, list) else v) for k, v in raw.items()})
 
@@ -101,7 +103,7 @@ class Options:
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise ValueError(f"读取配置文件失败：{path}（{exc}）") from exc
+            raise ValueError(t("err.config_read", path=path, error=exc)) from exc
         if not isinstance(data, dict):
-            raise ValueError(f"配置文件内容需要是一个 JSON 对象：{path}")
+            raise ValueError(t("err.config_object", path=path))
         return cls.from_dict(data)

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .i18n import SUPPORTED_LANGS, detect_lang, epilog, set_lang, t
 from .options import Options, read_names, split_list
 from .registry import TEMPLATES, build_templates, resolve
 from .render import render_spec
@@ -23,56 +24,42 @@ DEFAULT_OUT_DIR = "dist"
 OPTION_FIELDS = ("company", "year", "month", "social_rate", "fund_rate", "start_date")
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(lang: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="build",
-        description="生成 5 套「填数即自动计算」的中文办公 Excel 模板",
+        description=t("cli.description"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "示例：\n"
-            "  python build.py                  生成全部内置模板到 dist/\n"
-            "  python build.py -o ./我的模板     指定输出目录\n"
-            "  python build.py -t 1,3            只生成第 1、3 套\n"
-            "  python build.py --list            查看可用模板\n"
-            "\n"
-            "带上自己的公司和名单：\n"
-            "  python build.py -c 某某科技 --staff 张三,李四,王五 --departments 销售部,技术部\n"
-            "  python build.py --staff-file names.txt --year 2026 --month 11\n"
-            "  python build.py --config examples/params.json\n"
-            "\n"
-            "用 YAML 定义自己的模板：\n"
-            "  python build.py --spec examples/specs/差旅报销单.yaml\n"
-            "  python build.py --spec my.yaml -c 某某科技 -o ./out\n"
-        ),
+        epilog=epilog(lang),
     )
-    parser.add_argument("-o", "--out-dir", default=DEFAULT_OUT_DIR, help=f"输出目录，默认 {DEFAULT_OUT_DIR}/")
+    parser.add_argument("-o", "--out-dir", default=DEFAULT_OUT_DIR, help=t("cli.out_dir"))
     parser.add_argument(
         "-t",
         "--only",
         nargs="+",
-        metavar="模板",
-        help="只生成指定内置模板，编号或名称均可，空格或逗号分隔",
+        metavar=t("cli.metavar.template"),
+        help=t("cli.only"),
     )
-    parser.add_argument("-l", "--list", action="store_true", help="列出所有可用模板后退出")
-    parser.add_argument("-q", "--quiet", action="store_true", help="只输出错误信息")
+    parser.add_argument("-l", "--list", action="store_true", help=t("cli.list"))
+    parser.add_argument("-q", "--quiet", action="store_true", help=t("cli.quiet"))
     parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--lang", choices=SUPPORTED_LANGS, help=t("cli.lang"))
 
-    params = parser.add_argument_group("模板参数（影响生成的模板内容）")
-    params.add_argument("-c", "--company", help="公司名，会加在每套模板的标题前")
-    params.add_argument("--staff", help="员工名单，逗号分隔，如：张三,李四,王五")
-    params.add_argument("--staff-file", help="员工名单文件，一行一个姓名，# 开头为注释")
-    params.add_argument("--departments", help="部门列表，逗号分隔，如：销售部,技术部,财务部")
-    params.add_argument("--year", type=int, help="年份，默认 2026")
-    params.add_argument("--month", type=int, help="月份 1-12，默认 10")
-    params.add_argument("--social-rate", type=float, help="社保个人比例，如 0.105")
-    params.add_argument("--fund-rate", type=float, help="公积金比例，如 0.07")
-    params.add_argument("--start-date", help="项目起始日 YYYY-MM-DD，用于甘特图")
-    params.add_argument("--config", help="JSON 配置文件，批量指定以上参数（命令行参数优先）")
+    params = parser.add_argument_group(t("cli.group.params"))
+    params.add_argument("-c", "--company", help=t("cli.company"))
+    params.add_argument("--staff", help=t("cli.staff"))
+    params.add_argument("--staff-file", help=t("cli.staff_file"))
+    params.add_argument("--departments", help=t("cli.departments"))
+    params.add_argument("--year", type=int, help=t("cli.year"))
+    params.add_argument("--month", type=int, help=t("cli.month"))
+    params.add_argument("--social-rate", type=float, help=t("cli.social_rate"))
+    params.add_argument("--fund-rate", type=float, help=t("cli.fund_rate"))
+    params.add_argument("--start-date", help=t("cli.start_date"))
+    params.add_argument("--config", help=t("cli.config"))
     params.add_argument(
         "--spec",
         nargs="+",
-        metavar="文件",
-        help="按 YAML/JSON 模板定义生成自定义模板（见 examples/specs/）；不指定 -t 时只生成这些",
+        metavar=t("cli.metavar.file"),
+        help=t("cli.spec"),
     )
     return parser
 
@@ -86,11 +73,11 @@ def collect_options(args: argparse.Namespace) -> Options:
         try:
             loaded = json.loads(path.read_text(encoding="utf-8"))
         except OSError as exc:
-            raise ValueError(f"读取配置文件失败：{args.config}（{exc}）") from exc
+            raise ValueError(t("err.config_read", path=args.config, error=exc)) from exc
         except json.JSONDecodeError as exc:
-            raise ValueError(f"配置文件不是合法 JSON：{args.config}（{exc}）") from exc
+            raise ValueError(t("err.config_json", path=args.config, error=exc)) from exc
         if not isinstance(loaded, dict):
-            raise ValueError(f"配置文件内容需要是一个 JSON 对象：{args.config}")
+            raise ValueError(t("err.config_object", path=args.config))
         data.update(loaded)
 
     for field in OPTION_FIELDS:
@@ -115,14 +102,21 @@ def collect_options(args: argparse.Namespace) -> Options:
 
 
 def print_list() -> None:
-    width = max(len(t.key) for t in TEMPLATES)
-    print("可用模板：")
-    for i, t in enumerate(TEMPLATES, 1):
-        print(f"  {i}. {t.key:<{width}}  {t.filename}  — {t.desc}")
+    width = max(len(tpl.key) for tpl in TEMPLATES)
+    print(t("list.header"))
+    for i, tpl in enumerate(TEMPLATES, 1):
+        print(f"  {i}. {tpl.key:<{width}}  {tpl.filename}  — {t(f'desc.{tpl.key}')}")
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    # 先只解析 --lang，好让 --help 也用对应语言；其余参数交给正式解析器
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--lang", choices=SUPPORTED_LANGS)
+    known, _ = pre.parse_known_args(argv)
+    lang = known.lang or detect_lang()
+    set_lang(lang)
+
+    args = build_parser(lang).parse_args(argv)
     logging.basicConfig(
         level=logging.WARNING if args.quiet else logging.INFO,
         format="%(message)s",
@@ -146,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         paths = build_templates(selected, out_dir, options)
     except OSError as exc:
-        logger.error("写入失败：%s", exc)
+        logger.error(t("msg.write_failed", error=exc))
         return 1
 
     for spec in specs:
@@ -156,12 +150,12 @@ def main(argv: list[str] | None = None) -> int:
             path.parent.mkdir(parents=True, exist_ok=True)
             wb.save(path)
         except OSError as exc:
-            logger.error("写入失败：%s", exc)
+            logger.error(t("msg.write_failed", error=exc))
             return 1
         paths.append(path)
-        logger.info("已生成 %s", path)
+        logger.info(t("msg.generated", path=path))
 
-    logger.info("完成：%d 个文件 → %s", len(paths), out_dir.resolve())
+    logger.info(t("msg.done", count=len(paths), dir=out_dir.resolve()))
     return 0
 
 

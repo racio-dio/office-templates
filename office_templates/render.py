@@ -15,6 +15,7 @@ from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter as L
 from openpyxl.worksheet.datavalidation import DataValidation
 
+from .i18n import t
 from .options import Options, with_company
 from .spec import ColumnSpec, SheetSpec, Spec
 from .styles import F, body, header, title
@@ -81,7 +82,7 @@ def _render_sheet(ws, sheet: SheetSpec, spec: Spec, options: Options) -> None:
         dv.add(f"{L(j)}{r1}:{L(j)}{last}")
 
     if sheet.totals:
-        ws.cell(total_row, 1, "合计").font = Font(name=F, bold=True)
+        ws.cell(total_row, 1, t("render.total")).font = Font(name=F, bold=True)
         for j, col in enumerate(sheet.columns, 1):
             if not col.total:
                 continue

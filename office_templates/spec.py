@@ -19,6 +19,8 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
+from .i18n import t
+
 try:
     import yaml
 except ImportError:  # PyYAML 是可选依赖，用到 YAML 时才需要
@@ -31,10 +33,10 @@ def _known(cls: type) -> set[str]:
     return {f.name for f in fields(cls)}
 
 
-def _reject_unknown(cls: type, data: dict[str, Any], where: str) -> None:
+def _reject_unknown(cls: type, data: dict[str, Any], where_key: str) -> None:
     unknown = set(data) - _known(cls)
     if unknown:
-        raise ValueError(f"{where}里有未知字段：{', '.join(sorted(unknown))}")
+        raise ValueError(t("err.unknown_field", where=t(where_key), names=", ".join(sorted(unknown))))
 
 
 @dataclass
@@ -49,9 +51,9 @@ class ConditionalSpec:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ConditionalSpec:
-        _reject_unknown(cls, data, "条件格式")
+        _reject_unknown(cls, data, "where.conditional")
         if "range" not in data or "when" not in data:
-            raise ValueError("条件格式必须同时有 range 和 when")
+            raise ValueError(t("err.conditional_fields"))
         return cls(**data)
 
 
@@ -72,13 +74,15 @@ class ColumnSpec:
 
     def __post_init__(self) -> None:
         if self.type not in ALLOWED_TYPES:
-            raise ValueError(f"列「{self.label}」的 type 只能是 {'/'.join(ALLOWED_TYPES)}，收到 {self.type}")
+            raise ValueError(
+                t("err.column_type", label=self.label, types="/".join(ALLOWED_TYPES), value=self.type)
+            )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ColumnSpec:
-        _reject_unknown(cls, data, "列定义")
+        _reject_unknown(cls, data, "where.column")
         if not data.get("label"):
-            raise ValueError("每一列必须有 label")
+            raise ValueError(t("err.column_label"))
         return cls(**data)
 
 
@@ -98,15 +102,15 @@ class SheetSpec:
 
     def __post_init__(self) -> None:
         if not self.columns:
-            raise ValueError(f"工作表「{self.name}」至少要有一列")
+            raise ValueError(t("err.sheet_columns", name=self.name))
         if self.rows < 1:
-            raise ValueError(f"工作表「{self.name}」的 rows 至少为 1")
+            raise ValueError(t("err.sheet_rows", name=self.name))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SheetSpec:
-        _reject_unknown(cls, data, "工作表定义")
+        _reject_unknown(cls, data, "where.sheet")
         if not data.get("name"):
-            raise ValueError("每个工作表必须有 name")
+            raise ValueError(t("err.sheet_name"))
         raw = dict(data)
         raw["columns"] = [ColumnSpec.from_dict(c) for c in raw.get("columns", [])]
         raw["conditionals"] = [ConditionalSpec.from_dict(c) for c in raw.get("conditionals", [])]
@@ -124,15 +128,15 @@ class Spec:
 
     def __post_init__(self) -> None:
         if not self.filename:
-            raise ValueError("模板必须有 filename")
+            raise ValueError(t("err.filename_required"))
         if not self.filename.endswith(".xlsx"):
-            raise ValueError(f"filename 必须以 .xlsx 结尾：{self.filename}")
+            raise ValueError(t("err.filename_suffix", value=self.filename))
         if not self.sheets:
-            raise ValueError(f"模板「{self.filename}」至少要有一个工作表")
+            raise ValueError(t("err.sheets_required", filename=self.filename))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Spec:
-        _reject_unknown(cls, data, "模板定义")
+        _reject_unknown(cls, data, "where.spec")
         raw = dict(data)
         raw["sheets"] = [SheetSpec.from_dict(s) for s in raw.get("sheets", [])]
         return cls(**raw)
@@ -144,21 +148,21 @@ def load_spec(path: str | Path) -> Spec:
     try:
         text = p.read_text(encoding="utf-8")
     except OSError as exc:
-        raise ValueError(f"读取模板定义失败：{path}（{exc}）") from exc
+        raise ValueError(t("err.spec_read", path=path, error=exc)) from exc
 
     if p.suffix.lower() == ".json":
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"模板定义不是合法 JSON：{path}（{exc}）") from exc
+            raise ValueError(t("err.spec_json", path=path, error=exc)) from exc
     else:
         if yaml is None:
-            raise ValueError(f"读取 YAML 模板定义需要 PyYAML：pip install pyyaml（{path}）")
+            raise ValueError(t("err.spec_needs_yaml", path=path))
         try:
             data = yaml.safe_load(text)
         except yaml.YAMLError as exc:
-            raise ValueError(f"模板定义不是合法 YAML：{path}（{exc}）") from exc
+            raise ValueError(t("err.spec_yaml", path=path, error=exc)) from exc
 
     if not isinstance(data, dict):
-        raise ValueError(f"模板定义内容需要是一个映射（键值对）：{path}")
+        raise ValueError(t("err.spec_object", path=path))
     return Spec.from_dict(data)

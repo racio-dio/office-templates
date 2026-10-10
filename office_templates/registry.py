@@ -9,6 +9,7 @@ from typing import Callable, Iterable, Sequence
 
 from openpyxl import Workbook
 
+from .i18n import t
 from .options import Options
 from .templates import MODULES
 
@@ -29,8 +30,8 @@ TEMPLATES: tuple[Template, ...] = tuple(
     Template(key=m.KEY, filename=m.FILENAME, desc=m.DESC, build=m.build) for m in MODULES
 )
 
-_BY_KEY = {t.key: t for t in TEMPLATES}
-_BY_INDEX = {str(i): t for i, t in enumerate(TEMPLATES, 1)}
+_BY_KEY = {tpl.key: tpl for tpl in TEMPLATES}
+_BY_INDEX = {str(i): tpl for i, tpl in enumerate(TEMPLATES, 1)}
 
 
 def all_templates() -> tuple[Template, ...]:
@@ -58,13 +59,13 @@ def resolve(specs: Iterable[str] | None) -> list[Template]:
             else:
                 tpl = _BY_KEY.get(token.lower())
             if tpl is None:
-                raise ValueError(f"未知模板：{token}（用 --list 查看可用模板）")
+                raise ValueError(t("err.unknown_template", token=token))
             if tpl.key not in seen:
                 seen.add(tpl.key)
                 picked.append(tpl)
 
     if not picked:
-        raise ValueError("没有选中任何模板")
+        raise ValueError(t("err.no_template"))
     return picked
 
 
@@ -87,5 +88,5 @@ def build_templates(
         path = out / tpl.filename
         wb.save(path)
         paths.append(path)
-        logger.info("已生成 %s", path)
+        logger.info(t("msg.generated", path=path))
     return paths

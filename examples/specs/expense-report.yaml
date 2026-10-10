@@ -1,0 +1,74 @@
+# Example: an expense report defined entirely in YAML, no Python involved.
+#
+# Usage:
+#   python build.py --spec examples/specs/expense-report.yaml
+#   python build.py --spec examples/specs/expense-report.yaml -c Acme
+#
+# Placeholders you can use in formulas: {r} current row, {r1} first data row,
+# {last} last data row, {total} totals row.
+
+filename: expense-report.xlsx
+title: Expense report
+subtitle: Fill the yellow cells; anything over 1000 is flagged red; totals by category
+
+sheets:
+  - name: Items
+    header_row: 3
+    rows: 30
+    freeze: A4
+    totals: true
+    columns:
+      - label: Date
+        width: 12
+        type: date
+        format: yyyy-mm-dd
+        fill: FFF9E5
+        sample: [2026-10-08, 2026-10-09, 2026-10-09]
+      - label: Description
+        width: 24
+        fill: FFF9E5
+        sample: [Train ticket, Hotel, Taxi]
+      - label: Category
+        width: 12
+        fill: FFF9E5
+        choices: [Travel, Meals, Lodging, Supplies, Other]
+        sample: [Travel, Lodging, Travel]
+      - label: Receipts
+        width: 10
+        type: number
+        fill: FFF9E5
+        sample: [1, 1, 2]
+      - label: Amount
+        width: 12
+        type: number
+        format: "#,##0.00"
+        fill: FFF9E5
+        total: true
+        sample: [553, 680, 86]
+      - label: Note
+        width: 24
+        sample: [Berlin to Munich, 2 nights, Airport transfer]
+    conditionals:
+      - range: "A{r1}:F{last}"
+        when: "$E{r1}>1000"
+        font_color: C00000
+        bold: true
+
+  - name: By category
+    header_row: 3
+    rows: 5
+    totals: true
+    columns:
+      - label: Category
+        width: 14
+        sample: [Travel, Meals, Lodging, Supplies, Other]
+      - label: Amount
+        width: 14
+        type: number
+        format: "#,##0.00"
+        total: true
+        formula: "=SUMIFS(Items!$E:$E,Items!$C:$C,A{r})"
+      - label: Share
+        width: 10
+        format: "0.0%"
+        formula: "=IFERROR(B{r}/$B${total},0)"
