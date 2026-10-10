@@ -1,0 +1,73 @@
+# 第 6 套模板：完全用 YAML 定义，不需要写一行 Python
+#
+# 用法：
+#   python build.py --spec examples/specs/差旅报销单.yaml
+#   python build.py --spec examples/specs/差旅报销单.yaml -c 某某科技
+#
+# 公式里可以用占位符：{r} 当前行、{r1} 数据首行、{last} 数据末行、{total} 合计行
+
+filename: 06_差旅报销单.xlsx
+title: 差旅费报销单
+subtitle: 填写黄色区域；金额自动汇总，单笔超 1000 元自动标红，「按类型汇总」自动统计
+
+sheets:
+  - name: 报销明细
+    header_row: 3
+    rows: 30
+    freeze: A4
+    totals: true
+    columns:
+      - label: 日期
+        width: 12
+        type: date
+        format: yyyy-mm-dd
+        fill: FFF9E5
+        sample: [2026-10-08, 2026-10-09, 2026-10-09]
+      - label: 事由
+        width: 24
+        fill: FFF9E5
+        sample: [出差高铁票, 酒店住宿, 市内打车]
+      - label: 类型
+        width: 10
+        fill: FFF9E5
+        choices: [交通, 住宿, 餐饮, 办公用品, 其他]
+        sample: [交通, 住宿, 交通]
+      - label: 票据张数
+        width: 10
+        type: number
+        fill: FFF9E5
+        sample: [1, 1, 2]
+      - label: 金额
+        width: 12
+        type: number
+        format: "#,##0.00"
+        fill: FFF9E5
+        total: true
+        sample: [553, 680, 86]
+      - label: 备注
+        width: 24
+        sample: [北京→上海, 如家 2 晚, 机场往返]
+    conditionals:
+      - range: "A{r1}:F{last}"
+        when: "$E{r1}>1000"
+        font_color: C00000
+        bold: true
+
+  - name: 按类型汇总
+    header_row: 3
+    rows: 5
+    totals: true
+    columns:
+      - label: 类型
+        width: 14
+        sample: [交通, 住宿, 餐饮, 办公用品, 其他]
+      - label: 金额
+        width: 14
+        type: number
+        format: "#,##0.00"
+        total: true
+        formula: "=SUMIFS(报销明细!$E:$E,报销明细!$C:$C,A{r})"
+      - label: 占比
+        width: 10
+        format: "0.0%"
+        formula: "=IFERROR(B{r}/$B${total},0)"

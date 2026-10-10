@@ -1,3 +1,9 @@
 *.xlsx
 *.zip
 __pycache__/
+dist/
+.venv/
+venv/
+*.egg-info/
+.eggs/
+build/

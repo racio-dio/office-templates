@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "office-templates"
+version = "0.4.0"
+description = "职场 Excel 自动化模板生成器：内置 5 套模板，也可用 YAML 定义自己的模板"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["excel", "openpyxl", "template", "office", "中文"]
+dependencies = ["openpyxl>=3.1.0", "PyYAML>=6.0"]
+
+[project.scripts]
+office-templates = "office_templates.cli:main"
+
+[tool.setuptools]
+packages = ["office_templates", "office_templates.templates"]
