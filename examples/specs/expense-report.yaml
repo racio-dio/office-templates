@@ -9,7 +9,7 @@
 
 filename: expense-report.xlsx
 title: Expense report
-subtitle: Fill the yellow cells; anything over 1000 is flagged red; totals by category
+subtitle: Yellow cells are yours. Anything over $1,000 turns red.
 
 sheets:
   - name: Items
@@ -21,33 +21,33 @@ sheets:
       - label: Date
         width: 12
         type: date
-        format: yyyy-mm-dd
+        format: mm/dd/yyyy
         fill: FFF9E5
-        sample: [2026-10-08, 2026-10-09, 2026-10-09]
+        sample: [2026-10-06, 2026-10-06, 2026-10-07, 2026-10-08]
       - label: Description
         width: 24
         fill: FFF9E5
-        sample: [Train ticket, Hotel, Taxi]
+        sample: [Flight, Taxi, Hotel, Client dinner]
       - label: Category
         width: 12
         fill: FFF9E5
         choices: [Travel, Meals, Lodging, Supplies, Other]
-        sample: [Travel, Lodging, Travel]
+        sample: [Travel, Travel, Lodging, Meals]
       - label: Receipts
         width: 10
         type: number
         fill: FFF9E5
-        sample: [1, 1, 2]
+        sample: [1, 1, 1, 1]
       - label: Amount
         width: 12
         type: number
-        format: "#,##0.00"
+        format: "$#,##0.00"
         fill: FFF9E5
         total: true
-        sample: [553, 680, 86]
+        sample: [1240, 46.5, 389, 182.4]
       - label: Note
         width: 24
-        sample: [Berlin to Munich, 2 nights, Airport transfer]
+        sample: [NYC to Chicago round trip, Airport to hotel, 2 nights, 3 people]
     conditionals:
       - range: "A{r1}:F{last}"
         when: "$E{r1}>1000"
@@ -55,6 +55,7 @@ sheets:
         bold: true
 
   - name: By category
+    subtitle: Totals pulled from the Items sheet
     header_row: 3
     rows: 5
     totals: true
@@ -65,7 +66,7 @@ sheets:
       - label: Amount
         width: 14
         type: number
-        format: "#,##0.00"
+        format: "$#,##0.00"
         total: true
         formula: "=SUMIFS(Items!$E:$E,Items!$C:$C,A{r})"
       - label: Share
