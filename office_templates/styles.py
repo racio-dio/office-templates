@@ -2,11 +2,13 @@
 
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter as L
+from openpyxl.worksheet.properties import PageSetupProperties
 
 __all__ = [
     "L",
     "B",
     "F",
+    "F_LATIN",
     "BLUE",
     "HEADER",
     "LIGHT",
@@ -17,6 +19,7 @@ __all__ = [
     "header",
     "body",
     "fill_cells",
+    "print_setup",
 ]
 
 # 配色
@@ -29,29 +32,30 @@ INPUT_SOFT = "FFF9E5"  # 需要填写的连续区域（比 INPUT 更浅，适合
 
 thin = Side(style="thin", color="BFBFBF")
 B = Border(left=thin, right=thin, top=thin, bottom=thin)
-F = "微软雅黑"
+F = "微软雅黑"  # 中文模板默认字体
+F_LATIN = "Calibri"  # 纯英文内容用 Calibri，Mac/Windows 的 Excel 都自带
 
 
-def title(ws, text, ncol, sub=None):
+def title(ws, text, ncol, sub=None, font=F):
     """第一行主标题，可选第二行灰色副标题（填写说明）。"""
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncol)
     c = ws.cell(1, 1, text)
-    c.font = Font(name=F, size=16, bold=True, color="FFFFFF")
+    c.font = Font(name=font, size=16, bold=True, color="FFFFFF")
     c.fill = PatternFill("solid", fgColor=BLUE)
     c.alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 32
     if sub:
         ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=ncol)
         s = ws.cell(2, 1, sub)
-        s.font = Font(name=F, size=9, italic=True, color="7F7F7F")
+        s.font = Font(name=font, size=9, italic=True, color="7F7F7F")
         s.alignment = Alignment(horizontal="center")
 
 
-def header(ws, row, cols, widths=None):
+def header(ws, row, cols, widths=None, font=F):
     """写一行表头，可选同时设置列宽。"""
     for i, h in enumerate(cols, 1):
         c = ws.cell(row, i, h)
-        c.font = Font(name=F, bold=True, color="FFFFFF")
+        c.font = Font(name=font, bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor=HEADER)
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         c.border = B
@@ -61,13 +65,13 @@ def header(ws, row, cols, widths=None):
     ws.row_dimensions[row].height = 24
 
 
-def body(ws, r1, r2, c1, c2):
+def body(ws, r1, r2, c1, c2, font=F):
     """给一片区域加边框、正文字体、居中与隔行底色。"""
     for r in range(r1, r2 + 1):
         for c in range(c1, c2 + 1):
             x = ws.cell(r, c)
             x.border = B
-            x.font = Font(name=F, size=10)
+            x.font = Font(name=font, size=10)
             x.alignment = Alignment(horizontal="center", vertical="center")
             if r % 2 == 0:
                 x.fill = PatternFill("solid", fgColor=GRAY)
@@ -78,3 +82,15 @@ def fill_cells(ws, r1, r2, cols, color=INPUT):
     for r in range(r1, r2 + 1):
         for c in cols:
             ws.cell(r, c).fill = PatternFill("solid", fgColor=color)
+
+
+def print_setup(ws):
+    """打印设置：缩放到一页宽、宽表横向、水平居中。已有手工设置的表不动。"""
+    if ws.sheet_properties.pageSetUpPr is not None and ws.sheet_properties.pageSetUpPr.fitToPage:
+        return
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    if ws.page_setup.orientation is None:
+        ws.page_setup.orientation = "landscape" if ws.max_column > 7 else "portrait"
+    ws.print_options.horizontalCentered = True
