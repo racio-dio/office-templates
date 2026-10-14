@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import string
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,44 @@ except ImportError:  # PyYAML 是可选依赖，用到 YAML 时才需要
     yaml = None
 
 ALLOWED_TYPES = ("text", "number", "date")
+
+# 占位符：公式里可以用当前行 {r}；条件格式作用于整片区域，没有"当前行"
+ROW_PLACEHOLDERS = ("r", "r1", "last", "total")
+RANGE_PLACEHOLDERS = ("r1", "last", "total")
+
+SHEET_NAME_MAX = 31
+SHEET_NAME_BAD = set('\\/?*[]:')
+DV_LIST_MAX = 255  # Excel 对下拉列表字面量的长度限制
+
+
+def check_placeholders(text: str, allowed: tuple[str, ...]) -> None:
+    """提前发现拼错的占位符，免得渲染时才抛 KeyError。"""
+    try:
+        names = [name for _, name, _, _ in string.Formatter().parse(text) if name is not None]
+    except ValueError as exc:  # 不成对的花括号
+        raise ValueError(t("err.placeholder", text=text, name="?", allowed=", ".join(allowed))) from exc
+    for name in names:
+        if name not in allowed:
+            raise ValueError(t("err.placeholder", text=text, name=name, allowed=", ".join(allowed)))
+
+
+def _as_int(name: str, value: Any) -> int:
+    if isinstance(value, bool):
+        raise ValueError(t("err.not_int", field=name, value=value))
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        raise ValueError(t("err.not_int", field=name, value=value)) from None
+
+
+def _as_list(name: str, value: Any) -> list:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(t("err.not_list", field=name))
+    return value
 
 
 def _known(cls: type) -> set[str]:
@@ -56,6 +95,12 @@ class ConditionalSpec:
             raise ValueError(t("err.conditional_fields"))
         return cls(**data)
 
+    def __post_init__(self) -> None:
+        self.range = str(self.range)
+        self.when = str(self.when)
+        check_placeholders(self.range, RANGE_PLACEHOLDERS)
+        check_placeholders(self.when, RANGE_PLACEHOLDERS)
+
 
 @dataclass
 class ColumnSpec:
@@ -77,13 +122,28 @@ class ColumnSpec:
             raise ValueError(
                 t("err.column_type", label=self.label, types="/".join(ALLOWED_TYPES), value=self.type)
             )
+        self.label = str(self.label)
+        if self.formula:
+            check_placeholders(self.formula, ROW_PLACEHOLDERS)
+        if self.choices:
+            self.choices = [str(c) for c in self.choices]
+            for c in self.choices:
+                if "," in c:
+                    raise ValueError(t("err.choice_comma", label=self.label, value=c))
+            if len(",".join(self.choices)) > DV_LIST_MAX:
+                raise ValueError(t("err.choices_too_long", label=self.label))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ColumnSpec:
         _reject_unknown(cls, data, "where.column")
         if not data.get("label"):
             raise ValueError(t("err.column_label"))
-        return cls(**data)
+        raw = dict(data)
+        if "choices" in raw and raw["choices"] is not None:
+            raw["choices"] = _as_list("choices", raw["choices"])
+        if "sample" in raw:
+            raw["sample"] = _as_list("sample", raw["sample"])
+        return cls(**raw)
 
 
 @dataclass
@@ -98,9 +158,15 @@ class SheetSpec:
     rows: int = 30
     freeze: str = ""
     totals: bool = False
+    total_label: str = ""
     conditionals: list[ConditionalSpec] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        self.name = str(self.name)
+        if len(self.name) > SHEET_NAME_MAX:
+            raise ValueError(t("err.sheet_name_length", name=self.name))
+        if SHEET_NAME_BAD & set(self.name):
+            raise ValueError(t("err.sheet_name_chars", name=self.name))
         if not self.columns:
             raise ValueError(t("err.sheet_columns", name=self.name))
         if self.rows < 1:
@@ -112,8 +178,11 @@ class SheetSpec:
         if not data.get("name"):
             raise ValueError(t("err.sheet_name"))
         raw = dict(data)
-        raw["columns"] = [ColumnSpec.from_dict(c) for c in raw.get("columns", [])]
-        raw["conditionals"] = [ConditionalSpec.from_dict(c) for c in raw.get("conditionals", [])]
+        for key in ("rows", "header_row"):
+            if key in raw:
+                raw[key] = _as_int(key, raw[key])
+        raw["columns"] = [ColumnSpec.from_dict(c) for c in _as_list("columns", raw.get("columns"))]
+        raw["conditionals"] = [ConditionalSpec.from_dict(c) for c in _as_list("conditionals", raw.get("conditionals"))]
         return cls(**raw)
 
 
@@ -131,14 +200,25 @@ class Spec:
             raise ValueError(t("err.filename_required"))
         if not self.filename.endswith(".xlsx"):
             raise ValueError(t("err.filename_suffix", value=self.filename))
+        if "\\" in self.filename or self.filename != Path(self.filename).name or self.filename.startswith("."):
+            raise ValueError(t("err.filename_plain", value=self.filename))
         if not self.sheets:
             raise ValueError(t("err.sheets_required", filename=self.filename))
+        seen: set[str] = set()
+        for sheet in self.sheets:
+            low = sheet.name.lower()  # Excel 的表名不区分大小写
+            if low in seen:
+                raise ValueError(t("err.sheet_name_dup", name=sheet.name))
+            seen.add(low)
+            minimum = 3 if (sheet.subtitle or self.subtitle) else 2
+            if sheet.header_row < minimum:
+                raise ValueError(t("err.header_row", name=sheet.name, min=minimum))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Spec:
         _reject_unknown(cls, data, "where.spec")
         raw = dict(data)
-        raw["sheets"] = [SheetSpec.from_dict(s) for s in raw.get("sheets", [])]
+        raw["sheets"] = [SheetSpec.from_dict(s) for s in _as_list("sheets", raw.get("sheets"))]
         return cls(**raw)
 
 
