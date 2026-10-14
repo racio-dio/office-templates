@@ -11,6 +11,7 @@ from openpyxl import Workbook
 
 from .i18n import t
 from .options import Options
+from .styles import print_setup
 from .templates import MODULES
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,8 @@ def build_templates(
     paths: list[Path] = []
     for tpl in templates:
         wb = tpl.build(opts)
+        for ws in wb.worksheets:
+            print_setup(ws)
         path = out / tpl.filename
         wb.save(path)
         paths.append(path)
