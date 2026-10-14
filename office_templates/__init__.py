@@ -1,6 +1,6 @@
 """office-templates：声明式 Excel 模板生成器（declarative Excel template generator）。"""
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 from .i18n import detect_lang, get_lang, set_lang
 from .options import Options

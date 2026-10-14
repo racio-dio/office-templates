@@ -26,7 +26,6 @@ OPTION_FIELDS = ("company", "year", "month", "social_rate", "fund_rate", "start_
 
 def build_parser(lang: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="build",
         description=t("cli.description"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=epilog(lang),
@@ -41,7 +40,7 @@ def build_parser(lang: str) -> argparse.ArgumentParser:
     )
     parser.add_argument("-l", "--list", action="store_true", help=t("cli.list"))
     parser.add_argument("-q", "--quiet", action="store_true", help=t("cli.quiet"))
-    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("-V", "--version", action="version", version=f"office-templates {__version__}")
     parser.add_argument("--lang", choices=SUPPORTED_LANGS, help=t("cli.lang"))
 
     params = parser.add_argument_group(t("cli.group.params"))
@@ -149,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
             path = out_dir / spec.filename
             path.parent.mkdir(parents=True, exist_ok=True)
             wb.save(path)
+        except ValueError as exc:  # 比如 openpyxl 拒绝的单元格内容
+            logger.error("%s", exc)
+            return 2
         except OSError as exc:
             logger.error(t("msg.write_failed", error=exc))
             return 1

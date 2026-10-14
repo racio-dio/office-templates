@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import date
 from pathlib import Path
 from typing import Any, Iterable
@@ -41,6 +41,27 @@ def read_names(path: str | Path) -> tuple[str, ...]:
     return names
 
 
+def _to_int(name: str, value: Any) -> int:
+    """接受 11 / "11"，拒绝 11.5、"abc"、True。"""
+    if isinstance(value, bool):
+        raise ValueError(t("err.not_int", field=name, value=value))
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        raise ValueError(t("err.not_int", field=name, value=value)) from None
+
+
+def _to_float(name: str, value: Any) -> float:
+    if isinstance(value, bool):
+        raise ValueError(t("err.not_number", field=name, value=value))
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(t("err.not_number", field=name, value=value)) from None
+
+
 def with_company(company: str, text: str) -> str:
     """给标题加公司名前缀；没填公司名就原样返回。"""
     return f"{company} · {text}" if company else text
@@ -53,13 +74,15 @@ class Options:
     company: str = ""
     staff: tuple[str, ...] = DEFAULT_STAFF
     departments: tuple[str, ...] = DEFAULT_DEPARTMENTS
-    year: int = 2026
-    month: int = 10
+    year: int = field(default_factory=lambda: date.today().year)
+    month: int = field(default_factory=lambda: date.today().month)
     social_rate: float = 0.105
     fund_rate: float = 0.07
-    start_date: date = date(2026, 10, 12)
+    start_date: date = field(default_factory=date.today)
 
     def __post_init__(self) -> None:
+        if not 1900 <= self.year <= 9999:
+            raise ValueError(t("err.not_int", field="year", value=self.year))
         if not 1 <= self.month <= 12:
             raise ValueError(t("err.month", value=self.month))
         if not 0 <= self.social_rate <= 1:
@@ -87,9 +110,12 @@ class Options:
                 raw["start_date"] = date.fromisoformat(raw["start_date"])
             except ValueError as exc:
                 raise ValueError(t("err.start_date_format", value=raw["start_date"])) from exc
+        for key in ("year", "month"):
+            if key in raw:
+                raw[key] = _to_int(key, raw[key])
         for key in ("social_rate", "fund_rate"):
-            if key in raw and isinstance(raw[key], str):
-                raw[key] = float(raw[key])
+            if key in raw:
+                raw[key] = _to_float(key, raw[key])
 
         known = {f.name for f in fields(cls)}
         unknown = set(raw) - known

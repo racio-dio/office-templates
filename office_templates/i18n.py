@@ -1,6 +1,6 @@
 """命令行与错误提示的双语文案。
 
-语言优先级：--lang > 环境变量 OFFICE_TEMPLATES_LANG > LANG/LC_ALL/LC_MESSAGES > 默认中文。
+语言优先级：--lang > 环境变量 OFFICE_TEMPLATES_LANG > LANG/LC_ALL/LC_MESSAGES > 默认英文。
 作为库调用时，模块加载会按环境自动选一次语言，可用 set_lang() 覆盖。
 """
 
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-DEFAULT_LANG = "zh"
+DEFAULT_LANG = "en"
 SUPPORTED_LANGS = ("zh", "en")
 
 MESSAGES: dict[str, dict[str, str]] = {
@@ -36,8 +36,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "file of staff names, one per line, # starts a comment",
     },
     "cli.departments": {"zh": "部门列表，逗号分隔", "en": "departments, comma separated"},
-    "cli.year": {"zh": "年份，默认 2026", "en": "year (default: 2026)"},
-    "cli.month": {"zh": "月份 1-12，默认 10", "en": "month 1-12 (default: 10)"},
+    "cli.year": {"zh": "年份，默认今年", "en": "year (default: this year)"},
+    "cli.month": {"zh": "月份 1-12，默认本月", "en": "month 1-12 (default: this month)"},
     "cli.social_rate": {"zh": "社保个人比例，如 0.105", "en": "social insurance rate, e.g. 0.105"},
     "cli.fund_rate": {"zh": "公积金比例，如 0.07", "en": "housing fund rate, e.g. 0.07"},
     "cli.start_date": {"zh": "项目起始日 YYYY-MM-DD，用于甘特图", "en": "project start date YYYY-MM-DD (Gantt)"},
@@ -129,6 +129,17 @@ MESSAGES: dict[str, dict[str, str]] = {
         "zh": "条件格式必须同时有 range 和 when",
         "en": "A conditional rule needs both range and when",
     },
+    "err.sheet_name_length": {"zh": "工作表名最多 31 个字符：{name}", "en": "Sheet name is longer than 31 characters: {name}"},
+    "err.sheet_name_chars": {"zh": "工作表名不能包含 \\ / ? * [ ] :：{name}", "en": "Sheet name cannot contain \\ / ? * [ ] : -> {name}"},
+    "err.sheet_name_dup": {"zh": "工作表名重复：{name}", "en": "Duplicate sheet name: {name}"},
+    "err.header_row": {"zh": "工作表「{name}」的 header_row 至少为 {min}（前面几行留给标题）", "en": "Sheet '{name}': header_row must be at least {min} (rows above it hold the title)"},
+    "err.not_int": {"zh": "{field} 需要是整数，收到 {value}", "en": "{field} must be a whole number, got {value}"},
+    "err.not_number": {"zh": "{field} 需要是数字，收到 {value}", "en": "{field} must be a number, got {value}"},
+    "err.not_list": {"zh": "{field} 需要是列表", "en": "{field} must be a list"},
+    "err.placeholder": {"zh": "「{text}」里有未知占位符 {{{name}}}，可用：{allowed}", "en": "Unknown placeholder {{{name}}} in '{text}'; allowed: {allowed}"},
+    "err.choice_comma": {"zh": "列「{label}」的下拉选项不能包含逗号：{value}", "en": "Column '{label}': dropdown choices cannot contain commas: {value}"},
+    "err.choices_too_long": {"zh": "列「{label}」的下拉选项合计超过 255 个字符，Excel 会打不开", "en": "Column '{label}': dropdown choices add up to more than 255 characters, which Excel rejects"},
+    "err.filename_plain": {"zh": "filename 只能是文件名，不能带路径：{value}", "en": "filename must be a plain file name, not a path: {value}"},
     "err.filename_required": {"zh": "模板必须有 filename", "en": "Template spec needs a filename"},
     "err.filename_suffix": {"zh": "filename 必须以 .xlsx 结尾：{value}", "en": "filename must end with .xlsx: {value}"},
     "err.sheets_required": {
@@ -180,7 +191,7 @@ _EPILOG = {
 
 
 def detect_lang() -> str:
-    """按环境变量猜一次语言，猜不出就用默认中文。"""
+    """按环境变量猜一次语言，猜不出就用默认英文。"""
     for value in (os.environ.get("OFFICE_TEMPLATES_LANG", ""), *(os.environ.get(v, "") for v in ("LANG", "LC_ALL", "LC_MESSAGES"))):
         low = value.lower()
         if low.startswith("zh"):
