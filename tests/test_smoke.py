@@ -51,7 +51,9 @@ class OptionsTest(unittest.TestCase):
     def test_defaults(self):
         opts = Options()
         self.assertEqual(opts.company, "")
-        self.assertEqual(opts.month_tag, "2026-10")
+        today = date.today()
+        self.assertEqual(opts.month_tag, f"{today.year}-{today.month:02d}")
+        self.assertEqual(opts.start_date, today)
         self.assertEqual(len(opts.staff), 5)
 
     def test_rejects_bad_month(self):
